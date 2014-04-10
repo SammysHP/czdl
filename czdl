@@ -1,0 +1,97 @@
+#!/bin/bash
+
+################################################################################
+#
+# Copyright (c) 2014 Sven Karsten Greiner <sven@sammyshp.de>
+# This work is free. You can redistribute it and/or modify it under the
+# terms of the Do What The Fuck You Want To Public License, Version 2,
+# as published by Sam Hocevar. See the COPYING file for more details.
+#
+################################################################################
+
+################################################################################
+#
+# CZDL - Download PDFs from the Cellesche Zeitung
+#
+#
+# Usage
+#     czdl [issue number]
+#
+#
+# Password and username configuration:
+#
+#     a) Set CZDL_USER and/or CZDL_PASS in $XDG_CONFIG_HOME/czdl, which is
+#        ~/.config/czdl as default.
+#        Example:
+#            CZDL_USER="foobar"
+#            CZDL_PASS="baz"
+#
+#     b) Set CZDL_USER and/or CZDL_PASS in your environment
+#
+#     c) Enter it in the prompt after calling czdl
+#
+#     d) Mix all of the above ways
+#
+#
+#     NOTE: Username and password must be URL-encoded!
+#
+#
+# Todo:
+#     - Make issue nuber optional and download latest issue
+#     - Use date of issue as filename
+#     - Check if issue number is valid
+#
+################################################################################
+
+
+[[ -z $XDG_CONFIG_HOME ]] && XDG_CONFIG_HOME=$HOME/.config
+
+[[ -z $CZDL_CONFIG ]] && CZDL_CONFIG=$XDG_CONFIG_HOME/czdl
+[[ -e $CZDL_CONFIG ]] && . $CZDL_CONFIG
+
+if [[ -z $CZDL_USER ]]; then
+    read -p "Username: " USERNAME
+else
+    USERNAME=$CZDL_USER
+fi
+
+if [[ -z $CZDL_PASS ]]; then
+    read -p "Password: " PASSWORD
+else
+    PASSWORD=$CZDL_PASS
+fi
+
+NUM=$(printf "%d" $1)
+if [[ $NUM == 0 ]]; then
+    echo "Issue number missing!"
+    exit 1
+fi
+
+COOKIE=`mktemp`
+URL_LOGIN="http://epaper.cellesche-zeitung.de/webpaper/index2.php"
+URL_OVERVIEW="http://epaper.cellesche-zeitung.de/webpaper/index.php?id=$NUM"
+URL_IMAGE="http://epaper.cellesche-zeitung.de/webpaper/index4.php?id=$NUM&pageno="
+URL_PDF="http://epaper.cellesche-zeitung.de/webpaper/index8.php?id=$NUM&pageno="
+
+echo -n "Logging in... "
+curl -s -c "$COOKIE" -L -d "benutzername=$USERNAME&passwort=$PASSWORD&submit=Anmelden" "$URL_LOGIN" > /dev/null 2>&1
+echo "done."
+
+echo "Starting download for issue number $NUM."
+
+PAGES=`curl -s -b "$COOKIE" -L "$URL_OVERVIEW$i" | grep -Pzo 'Seite [0-9]+</p>\s*</div>\s*</div>\s*<div class="clear">' | grep -Po '\d+'`
+echo "Found $PAGES pages."
+
+for i in $(seq 1 $PAGES); do
+    echo -n "Downloading page ${i}... "
+    FILENAME=$(printf "%d_%02d.pdf" $NUM $i)
+    curl -s -b "$COOKIE" -L "$URL_PDF$i" -o "$FILENAME" > /dev/null 2>&1
+    echo "done."
+done
+
+echo -n "Merging pages... "
+pdfunite "$NUM"_*.pdf "${NUM}.pdf"
+echo "done."
+
+rm -f "$NUM"_*.pdf
+rm -f "$COOKIE"
