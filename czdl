@@ -37,8 +37,7 @@
 #
 #
 # Todo:
-#     - Use date of issue as filename
-#     - Check if issue number is valid
+#     - Validate all parsed content, especially everything in "rm -f"
 #
 ################################################################################
 
@@ -84,6 +83,13 @@ echo "Starting download for issue number $NUM."
 PAGES=`curl -s -b "$COOKIE" -L "$URL_OVERVIEW$i" | grep -Pzo 'Seite \d+</p>\s*</div>\s*</div>\s*<div class="clear">' | grep -Po '\d+'`
 echo "Found $PAGES pages."
 
+DATE=`curl -s -b "$COOKIE" -L "$URL_OVERVIEW$i" | grep -Pzo 'selected="selected">[.0-9]+&nbsp;' | grep -Po '[.0-9]+'`
+echo "Date is $DATE"
+
+CURDIR=`pwd`
+TMPDIR=`mktemp -d`
+cd "$TMPDIR"
+
 for i in $(seq 1 $PAGES); do
     echo -n "Downloading page ${i}... "
     FILENAME=$(printf "%d_%02d.pdf" $NUM $i)
@@ -92,8 +98,13 @@ for i in $(seq 1 $PAGES); do
 done
 
 echo -n "Merging pages... "
-pdfunite "$NUM"_*.pdf "${NUM}.pdf"
+PDFNAME="${NUM}_${DATE}.pdf"
+pdfunite "$NUM"_*.pdf "$PDFNAME"
 echo "done."
 
+mv "$PDFNAME" "$CURDIR"
+
 rm -f "$NUM"_*.pdf
+cd "$CURDIR"
+rmdir "$TMPDIR"
 rm -f "$COOKIE"
