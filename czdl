@@ -37,7 +37,6 @@
 #
 #
 # Todo:
-#     - Make issue nuber optional and download latest issue
 #     - Use date of issue as filename
 #     - Check if issue number is valid
 #
@@ -61,10 +60,13 @@ else
     PASSWORD=$CZDL_PASS
 fi
 
+URL_INDEX="http://epaper.cellesche-zeitung.de/webpaper/"
+
 NUM=$(printf "%d" $1)
 if [[ $NUM == 0 ]]; then
-    echo "Issue number missing!"
-    exit 1
+    echo -n "Detecting latest issue number... "
+    NUM=`curl -s -L "$URL_INDEX" | grep -Pzo '(?s)id="slider".+?php\?id=\d+&amp;' | grep -Po '\d{2,}'`
+    echo "done."
 fi
 
 COOKIE=`mktemp`
@@ -79,7 +81,7 @@ echo "done."
 
 echo "Starting download for issue number $NUM."
 
-PAGES=`curl -s -b "$COOKIE" -L "$URL_OVERVIEW$i" | grep -Pzo 'Seite [0-9]+</p>\s*</div>\s*</div>\s*<div class="clear">' | grep -Po '\d+'`
+PAGES=`curl -s -b "$COOKIE" -L "$URL_OVERVIEW$i" | grep -Pzo 'Seite \d+</p>\s*</div>\s*</div>\s*<div class="clear">' | grep -Po '\d+'`
 echo "Found $PAGES pages."
 
 for i in $(seq 1 $PAGES); do
